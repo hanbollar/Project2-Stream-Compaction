@@ -55,8 +55,6 @@ int main(int argc, char* argv[]) {
     //printArray(SIZE, c, true);
     printCmpResult(SIZE, b, c);
 
-    
-
 	/* For bug-finding only: Array of 1s to help find bugs in stream compaction or scan
 	onesArray(SIZE, c);
 	printDesc("1s array for finding bugs");
