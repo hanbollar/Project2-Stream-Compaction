@@ -17,15 +17,22 @@ namespace StreamCompaction {
          * For performance analysis, this is supposed to be a simple for loop.
          * (Optional) For better understanding before starting moving to GPU, you can simulate your GPU scan in this function first.
          */
-        void scan(int n, int *odata, const int *idata) {
-	        timer().startCpuTimer();
 
+         // separated out so can call in general scan function
+         // and in compact with scan function without having
+         // an overlapping timer
+        void runScan(int n, const int *idata, int *odata) {
+          odata[0] = idata[0];
           int current_sum = 0;
-          for (int i = 0; i < n; ++i) {
+          for (int i = 1; i < n; ++i) {
             odata[i] = current_sum;
             current_sum += idata[i];
           }
+        }
 
+        void scan(int n, int *odata, const int *idata) {
+	        timer().startCpuTimer();
+          runScan(n, idata, odata);
 	        timer().endCpuTimer();
         }
 
@@ -64,35 +71,31 @@ namespace StreamCompaction {
           // map
           int* map = new int[n];
           int output_length = 0;
-          for (int i = 1; i < n; ++i) {
-            if (idata[i] == 0) {
-              map[i] = 0;
-            } else {
-              map[i] = 1;
-              ++output_length;
-            }
-            
+          for (int i = 0; i < n; ++i) {
+            map[i] = (idata[i] == 0) ? 0 : 1;
           }
 
-          // scan
+          int j = map[0];
+
           int* scan_output = new int[n];
-          int current_sum = 0;
-          for (int i = 0; i < n; ++i) {
-            scan_output[i] = current_sum;
-            current_sum += map[i];
-          }
+          runScan(n, map, scan_output);
+
+         j = scan_output[0];
 
           // scatter
-          int prev_in_scan = scan_output[0];
           int on_output_index = 0;
           for (int i = 1; i < n; ++i) {
-            if (scan_output[i] != prev_in_scan) {
-              odata[on_output_index];
+            if (idata[i] != 0) {
+              odata[scan_output[i]] = idata[i];
               ++on_output_index;
             }
           }
           
 	        timer().endCpuTimer();
+
+          delete[] map;
+          delete[] scan_output;
+
           return on_output_index;
         }
     }
