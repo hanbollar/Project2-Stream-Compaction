@@ -19,7 +19,13 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
 	        timer().startCpuTimer();
-            // TODO
+
+          int current_sum = 0;
+          for (int i = 0; i < n; ++i) {
+            odata[i] = current_sum;
+            current_sum += idata[i];
+          }
+
 	        timer().endCpuTimer();
         }
 
@@ -30,9 +36,17 @@ namespace StreamCompaction {
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
 	        timer().startCpuTimer();
-            // TODO
+          
+          int current_index = 0;
+          for (int i = 0; i < n; ++i) {
+            if (idata[i] != 0) {
+              odata[current_index] = idata[i];
+              ++current_index;
+            }
+          }
+
 	        timer().endCpuTimer();
-            return -1;
+          return current_index;
         }
 
         /**
@@ -42,9 +56,44 @@ namespace StreamCompaction {
          */
         int compactWithScan(int n, int *odata, const int *idata) {
 	        timer().startCpuTimer();
-	        // TODO
+
+          if (n < 1) {
+            return 0;
+          }
+
+          // map
+          int* map = new int[n];
+          int output_length = 0;
+          for (int i = 1; i < n; ++i) {
+            if (idata[i] == 0) {
+              map[i] = 0;
+            } else {
+              map[i] = 1;
+              ++output_length;
+            }
+            
+          }
+
+          // scan
+          int* scan_output = new int[n];
+          int current_sum = 0;
+          for (int i = 0; i < n; ++i) {
+            scan_output[i] = current_sum;
+            current_sum += map[i];
+          }
+
+          // scatter
+          int prev_in_scan = scan_output[0];
+          int on_output_index = 0;
+          for (int i = 1; i < n; ++i) {
+            if (scan_output[i] != prev_in_scan) {
+              odata[on_output_index];
+              ++on_output_index;
+            }
+          }
+          
 	        timer().endCpuTimer();
-            return -1;
+          return on_output_index;
         }
     }
 }
