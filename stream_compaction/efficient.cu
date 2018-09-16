@@ -81,7 +81,7 @@ namespace StreamCompaction {
           // BEGIN: efficient scan downsweep
           // set max element from upsweep iteration, dev_temp[n - 1], to 0
           cudaMemset(dev_temp + upper_bound - 1, 0, sizeof(int));
-          checkCUDAErrorFn("Zero Copy failed with error");
+          checkCUDAError("copying zero failed!", __LINE__);
 
           for (int pass_iteration = upper_bound / 2; pass_iteration > 0; pass_iteration /= 2) {
             kernelEfficientScanDownSweep << <blocksPerGrid, threadsPerBlock >> > (upper_bound, pass_iteration, dev_temp);
@@ -112,9 +112,46 @@ namespace StreamCompaction {
          */
         int compact(int n, int *odata, const int *idata) {
             timer().startGpuTimer();
-            // TODO
+
+            dim3 blocksPerGrid((n + blockSize - 1) / blockSize);
+            dim3 threadsPerBlock(blockSize);
+
+            int* data;
+            int* final_data;
+            int* bools;
+            int* scan;
+            cudaMalloc((void**)&data, sizeof(int) * n);
+            cudaMalloc((void**)&final_data, sizeof(int) * n);
+            cudaMalloc((void**)&bools, sizeof(int) * n);
+            cudaMalloc((void**)&scan, sizeof(int) * n);
+            checkCUDAError("mallocing failed!", __LINE__);
+
+            cudaMemcpy(data, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
+            checkCUDAError("copy to gpu data array failed!", __LINE__);
+
+            StreamCompaction::Common::kernMapToBoolean << <blocksPerGrid, threadsPerBlock>> > (n, bools, data);
+            checkCUDAError("kernMapToBoolean failed!", __LINE__);
+
+            StreamCompaction::Efficient::runScan(n, scan, bools);
+
+            int last_value[1];
+            cudaMemcpy(&last_value, scan + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+            int count = (idata[n - 1] == 0) ? last_value[0] : last_value[0] + 1;
+
+            StreamCompaction::Common::kernScatter << <blocksPerGrid, threadsPerBlock>> > (n, final_data, data, bools, scan);
+            checkCUDAError("kernScatter failed!", __LINE__);
+
+            cudaMemcpy(odata, final_data, sizeof(int) * n, cudaMemcpyDeviceToHost);
+            checkCUDAError("copy from gpu data array failed!", __LINE__);
+
             timer().endGpuTimer();
-            return -1;
+
+            cudaFree(data);
+            cudaFree(final_data);
+            cudaFree(bools);
+            cudaFree(scan);
+
+            return count;
         }
     }
 }
