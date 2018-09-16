@@ -22,9 +22,8 @@ namespace StreamCompaction {
          // and in compact with scan function without having
          // an overlapping timer
         void runScan(int n, const int *idata, int *odata) {
-          odata[0] = idata[0];
           int current_sum = 0;
-          for (int i = 1; i < n; ++i) {
+          for (int i = 0; i < n; ++i) {
             odata[i] = current_sum;
             current_sum += idata[i];
           }
@@ -75,18 +74,14 @@ namespace StreamCompaction {
             map[i] = (idata[i] == 0) ? 0 : 1;
           }
 
-          int j = map[0];
-
           int* scan_output = new int[n];
           runScan(n, map, scan_output);
-
-         j = scan_output[0];
 
           // scatter
           int on_output_index = 0;
           for (int i = 1; i < n; ++i) {
-            if (idata[i] != 0) {
-              odata[scan_output[i]] = idata[i];
+            if (scan_output[i] != scan_output[i - 1]) {
+              odata[on_output_index] = idata[i - 1];
               ++on_output_index;
             }
           }
