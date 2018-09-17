@@ -11,6 +11,7 @@
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
+#include <stream_compaction\radix.h>
 #include "testing_helpers.hpp"
 
 const int SIZE = 1 << 8; // feel free to change the size of array
@@ -34,7 +35,7 @@ int main(int argc, char* argv[]) {
     // initialize b using StreamCompaction::CPU::scan you implement
     // We use b for further comparison. Make sure your StreamCompaction::CPU::scan is correct.
     // At first all cases passed because b && c are all zeroes.
-    zeroArray(SIZE, b);
+    /*zeroArray(SIZE, b);
     printDesc("cpu scan, power-of-two");
     StreamCompaction::CPU::scan(SIZE, b, a);
     printElapsedTime(StreamCompaction::CPU::timer().getCpuElapsedTimeForPreviousOperation(), "(std::chrono Measured)");
@@ -54,13 +55,15 @@ int main(int argc, char* argv[]) {
     //printArray(SIZE, c, true);
     printCmpResult(SIZE, b, c);
 
+    */
+
 	/* For bug-finding only: Array of 1s to help find bugs in stream compaction or scan
 	onesArray(SIZE, c);
 	printDesc("1s array for finding bugs");
 	StreamCompaction::Naive::scan(SIZE, c, a);
 	printArray(SIZE, c, true);*/
 
-    zeroArray(SIZE, c);
+   /* zeroArray(SIZE, c);
     printDesc("naive scan, non-power-of-two");
     StreamCompaction::Naive::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::Naive::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
@@ -93,7 +96,37 @@ int main(int argc, char* argv[]) {
     StreamCompaction::Thrust::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     printArray(NPOT, c, true);
-    printCmpResult(NPOT, b, c);
+    printCmpResult(NPOT, b, c);*/
+
+    printf("\n");
+    printf("**********************\n");
+    printf("** RADIX SORT TESTS **\n");
+    printf("**********************\n");
+
+    int arr[] = { 4, 7, 2, 6, 3, 5, 1, 8 };
+    int sorted_arr[] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    int arrNP[] = { 4, 7, 2, 6, 3, 5, 1 };
+    int sortedNP[] = { 1, 2, 3, 4, 5, 6, 7 };
+
+    printArray(8, arr, true);
+    printArray(8, sorted_arr, true);
+    zeroArray(8, c);
+    printDesc("radix sort, power-of-two");
+    StreamCompaction::Radix::radix(8, c, arr, 8);
+    printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(8, c, true);
+    printCmpResult(8, sorted_arr, c);
+    
+    printf("**********************\n");
+
+    printArray(7, arrNP, true);
+    printArray(7, sortedNP, true);
+    zeroArray(7, c);
+    printDesc("radix sort, non-power-of-two - CURRENTLY IMPLEMENTING WITHOUT HANDLING THIS CASE SO WILL NOT PASS");
+    StreamCompaction::Radix::radix(7, c, arrNP, 8);
+    printElapsedTime(StreamCompaction::Thrust::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printArray(7, c, true);
+    printCmpResult(7, sortedNP, c);
 
     printf("\n");
     printf("*****************************\n");

@@ -3,9 +3,6 @@
 #include "common.h"
 #include "naive.h"
 
-/*! Block size used for CUDA kernel launch. */
-#define blockSize 128
-
 namespace StreamCompaction {
     namespace Naive {
         using StreamCompaction::Common::PerformanceTimer;

@@ -3,9 +3,6 @@
 #include "common.h"
 #include "efficient.h"
 
-/*! Block size used for CUDA kernel launch. */
-#define blockSize 128
-
 namespace StreamCompaction {
     namespace Efficient {
         using StreamCompaction::Common::PerformanceTimer;
@@ -153,5 +150,108 @@ namespace StreamCompaction {
 
             return count;
         }
+    }
+
+    namespace Radix {
+
+      /*
+      * Same idea as StreamCompaction::Radix except instead returns the opposite
+      * boolean as the other function.
+      */
+      __global__ void kernMapToSpecifiedDigit(int n, const int binary_digit, int *opp_binary, const int *idata) {
+        int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+        if (index >= n) {
+          return;
+        }
+
+        // we want opp boolean of the binary masking's output
+        opp_binary[index] = (idata[index] & binary_digit) ? 0 : 1;
+      }
+
+      /*
+      * Implementing intermediary steps of gpu gems 3 section 39.3.3 for radix sort
+      * using t and d values to create final index outputs to be used in scatter
+      * to move all the elements to their final sorted ordering for the current digit
+      * iteration
+      */
+      __global__ void kernResolveScatterInput(int n, int *scatter_input, const int num_false, const int* opp_binary, const int *scan_output) {
+        int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+        if (index >= n) {
+          return;
+        }
+
+        // t = i - f + num_false
+
+        // b = !digits since i set digits to be the opposite of the normal binary rep for inputting to scan
+        // d = b ? t : f
+        //scatter_input[index] = index - scan_output[index] + num_false;
+
+        scatter_input[index] = (!opp_binary[index]) ? index - scan_output[index] + num_false : scan_output[index];
+      }
+
+      /*
+      * Scatter where all bools are true
+      */
+      __global__ void kernTrueScatter(int n, int *odata, const int *idata, const int *indices) {
+        int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+        if (index >= n) {
+          return;
+        }
+
+        odata[indices[index]] = idata[index];
+      }
+
+      /*
+      * The CUDA implementation of radix sort on integer inputs
+      */
+      void radix(int n, int *odata, const int *idata, const int max_digit) {
+        int upper_bound = 1 << max_digit;
+
+
+        dim3 blocksPerGrid((upper_bound + blockSize - 1) / blockSize);
+        dim3 threadsPerBlock(blockSize);
+
+        int* dev_opposite_binary;
+        int* dev_scan_output;
+        int* dev_idata;
+        int* dev_scatter_indices_input;
+        int* dev_odata;
+        cudaMalloc((void**)&dev_opposite_binary, sizeof(int) * upper_bound);
+        cudaMalloc((void**)&dev_scan_output, sizeof(int) * upper_bound);
+        cudaMalloc((void**)&dev_idata, sizeof(int) * upper_bound);
+        cudaMalloc((void**)&dev_scatter_indices_input, sizeof(int) * upper_bound);
+        cudaMalloc((void**)&dev_odata, sizeof(int) * upper_bound);
+        checkCUDAError("mallocing failed!", __LINE__);
+
+        cudaMemset(dev_idata, 0, sizeof(int) * upper_bound);
+        cudaMemcpy(dev_idata, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
+
+        //int i = 1;
+        for (int i = 1; i <= max_digit; i *= 2) {
+          // map to opposite binary
+          kernMapToSpecifiedDigit << <blocksPerGrid, threadsPerBlock >> > (n, i, dev_opposite_binary, dev_idata);
+
+          // scan
+          StreamCompaction::Efficient::runScan(n, dev_scan_output, dev_opposite_binary);
+
+          // interpret scan input
+          int last_value[1];
+          cudaMemcpy(&last_value, dev_scan_output + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+          last_value[0] += (int)(last_value[0] != 0); //(int)(n % 2 == 0);
+          kernResolveScatterInput << <blocksPerGrid, threadsPerBlock >> > (n, dev_scatter_indices_input, last_value[0], dev_opposite_binary, dev_scan_output);
+
+          // perform scatter
+          kernTrueScatter << <blocksPerGrid, threadsPerBlock >> >(n, dev_odata, dev_idata, dev_scatter_indices_input);
+          cudaMemcpy(dev_idata, dev_odata, sizeof(int) * n, cudaMemcpyDeviceToDevice);
+        }
+
+        cudaMemcpy(odata, dev_idata, sizeof(int) * n, cudaMemcpyDeviceToHost);
+
+        cudaFree(dev_opposite_binary);
+        cudaFree(dev_scan_output);
+        cudaFree(dev_idata);
+        cudaFree(dev_scatter_indices_input);
+        cudaFree(dev_odata);
+      }
     }
 }

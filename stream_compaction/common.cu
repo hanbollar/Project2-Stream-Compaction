@@ -35,8 +35,7 @@ namespace StreamCompaction {
          * Performs scatter on an array. That is, for each element in idata,
          * if bools[idx] == 1, it copies idata[idx] to odata[indices[idx]].
          */
-        __global__ void kernScatter(int n, int *odata,
-                const int *idata, const int *bools, const int *indices) {
+        __global__ void kernScatter(int n, int *odata, const int *idata, const int *bools, const int *indices) {
           int index = (blockIdx.x * blockDim.x) + threadIdx.x;
           if (index >= n) {
             return;
