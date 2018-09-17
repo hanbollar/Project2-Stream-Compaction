@@ -52,9 +52,8 @@ namespace StreamCompaction {
         * Performs prefix-sum (aka scan) on idata, storing the result into odata.
         */
 
-        // separated out so can call in general scan function
-        // and in compact with scan function without having
-        // an overlapping timer
+        // writing this here so that i can call it in compact and 
+        // avoid the timer conflict issue
         void runScan(int n, int *odata, const int *idata) {
           int max_passes = ilog2ceil(n);
           int upper_bound = 1 << max_passes;
@@ -65,7 +64,6 @@ namespace StreamCompaction {
           // array used for in-place threaded manipulations
           int *dev_temp;
           cudaMalloc((void**)&dev_temp, sizeof(int) * upper_bound);
-
           // zero out array so also zeroing the unneeded elements past length n --> upper_bound
           cudaMemset(dev_temp, 0, sizeof(int) * upper_bound);
 
@@ -96,9 +94,11 @@ namespace StreamCompaction {
         }
 
         void scan(int n, int *odata, const int *idata) {
+          //-----START
           timer().startGpuTimer();
           runScan(n, odata, idata);
           timer().endGpuTimer();
+          //-----END
         }
 
         /**
@@ -111,8 +111,6 @@ namespace StreamCompaction {
          * @returns      The number of elements remaining after compaction.
          */
         int compact(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
-
             dim3 blocksPerGrid((n + blockSize - 1) / blockSize);
             dim3 threadsPerBlock(blockSize);
 
@@ -129,6 +127,8 @@ namespace StreamCompaction {
             cudaMemcpy(data, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
             checkCUDAError("copy to gpu data array failed!", __LINE__);
 
+            //-----START
+            timer().startGpuTimer();
             StreamCompaction::Common::kernMapToBoolean << <blocksPerGrid, threadsPerBlock>> > (n, bools, data);
             checkCUDAError("kernMapToBoolean failed!", __LINE__);
 
@@ -140,11 +140,11 @@ namespace StreamCompaction {
 
             StreamCompaction::Common::kernScatter << <blocksPerGrid, threadsPerBlock>> > (n, final_data, data, bools, scan);
             checkCUDAError("kernScatter failed!", __LINE__);
+            timer().endGpuTimer();
+            //-----END
 
             cudaMemcpy(odata, final_data, sizeof(int) * n, cudaMemcpyDeviceToHost);
             checkCUDAError("copy from gpu data array failed!", __LINE__);
-
-            timer().endGpuTimer();
 
             cudaFree(data);
             cudaFree(final_data);

@@ -45,8 +45,6 @@ namespace StreamCompaction {
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
         void scan(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
-
             // two arrays to swap between while scanning
             int *dev_swapA;
             int *dev_swapB;
@@ -59,6 +57,9 @@ namespace StreamCompaction {
 
             dim3 blocksPerGrid((n + blockSize - 1) / blockSize);
             dim3 threadsPerBlock(blockSize);
+
+            // -----START
+            timer().startGpuTimer();
 
             // copy over all the values of idata into A
             cudaMemcpy(dev_swapA, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
@@ -81,6 +82,7 @@ namespace StreamCompaction {
             checkCUDAError("cudaMemcpy dev_swapA and dev_swapB failed!", __LINE__);
 
             timer().endGpuTimer();
+            // -----END
 
             cudaFree(dev_swapA);
             cudaFree(dev_swapB);
