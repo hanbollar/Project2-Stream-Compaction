@@ -153,9 +153,6 @@ namespace StreamCompaction {
 
             return count;
         }
-    }
-
-    namespace Radix {
 
       /*
       * Same idea as StreamCompaction::Radix except instead returns the opposite
@@ -229,6 +226,8 @@ namespace StreamCompaction {
         cudaMemset(dev_idata, 0, sizeof(int) * upper_bound);
         cudaMemcpy(dev_idata, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
 
+        //START
+        timer().startGpuTimer();
         //int i = 1;
         for (int i = 1; i <= max_digit; i *= 2) {
           // map to opposite binary
@@ -247,6 +246,8 @@ namespace StreamCompaction {
           kernTrueScatter << <blocksPerGrid, threadsPerBlock >> >(n, dev_odata, dev_idata, dev_scatter_indices_input);
           cudaMemcpy(dev_idata, dev_odata, sizeof(int) * n, cudaMemcpyDeviceToDevice);
         }
+        timer().endGpuTimer();
+        //-----END
 
         cudaMemcpy(odata, dev_idata, sizeof(int) * n, cudaMemcpyDeviceToHost);
 
