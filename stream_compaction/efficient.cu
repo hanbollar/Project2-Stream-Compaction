@@ -3,6 +3,9 @@
 #include "common.h"
 #include "efficient.h"
 
+/*! Block size used for CUDA kernel launch. */
+#define blockSize 1024
+
 namespace StreamCompaction {
     namespace Efficient {
         using StreamCompaction::Common::PerformanceTimer;
